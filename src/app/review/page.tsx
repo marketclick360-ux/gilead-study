@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -8,7 +8,7 @@ import { sm2, Sm2State } from '@/lib/sm2'
 
 type Card = { id: string; question: string; answer: string; week_number: number; tags: string[]; difficulty: string }
 
-export default function ReviewPage() {
+function ReviewContent() {
   const params = useSearchParams()
   const weekFilter = params.get('week')
   const [cards, setCards] = useState<Card[]>([])
@@ -40,6 +40,7 @@ export default function ReviewPage() {
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading cards...</p></div>
   if (cards.length === 0) return <div className="flex flex-col items-center justify-center min-h-screen"><p>No cards found.</p><Link href="/" className="mt-4 text-emerald-400 underline">Back to dashboard</Link></div>
+
   if (done) return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <h2 className="text-2xl font-bold mb-4">Session complete!</h2>
@@ -68,5 +69,13 @@ export default function ReviewPage() {
         </div>
       )}
     </main>
+  )
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>}>
+      <ReviewContent />
+    </Suspense>
   )
 }
