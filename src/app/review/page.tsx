@@ -45,7 +45,7 @@ function ReviewContent() {
   const [loading, setLoading] = useState(true)
   const [sessionStats, setSessionStats] = useState({ again: 0, good: 0, easy: 0 })
   const [cardAnim, setCardAnim] = useState<string>('card-enter')
-  const [isFlipped, setIsFlipped] = useState(false)
+  const [flipStage, setFlipStage] = useState<'idle' | 'half' | 'done'>('idle')
 
   // Swipe state
   const [swipeX, setSwipeX] = useState(0)
@@ -76,7 +76,7 @@ function ReviewContent() {
     setCardAnim(animClass)
     setTimeout(() => {
       setShowAnswer(false)
-      setIsFlipped(false)
+      setFlipStage('idle')
       if (index + 1 < cards.length) {
         setIndex(index + 1)
         setCardAnim('card-enter')
@@ -115,11 +115,14 @@ function ReviewContent() {
   }, [current, advanceCard])
 
   const handleFlip = useCallback(() => {
-    if (!showAnswer) {
-      setIsFlipped(true)
-      setTimeout(() => setShowAnswer(true), 300)
+    if (!showAnswer && flipStage === 'idle') {
+      setFlipStage('half')
+      setTimeout(() => {
+        setShowAnswer(true)
+        setFlipStage('done')
+      }, 250)
     }
-  }, [showAnswer])
+  }, [showAnswer, flipStage])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -159,11 +162,11 @@ function ReviewContent() {
     setIsSwiping(false)
 
     if (swipeX < -SWIPE_THRESHOLD) {
-      rate(1) // Swipe left = Again
+      rate(1)
     } else if (swipeX > SWIPE_THRESHOLD) {
-      rate(5) // Swipe right = Easy
+      rate(5)
     } else if (swipeY < -SWIPE_THRESHOLD) {
-      rate(3) // Swipe up = Good
+      rate(3)
     }
 
     setSwipeX(0)
@@ -171,13 +174,19 @@ function ReviewContent() {
     touchStart.current = null
   }, [showAnswer, swipeX, swipeY, rate])
 
-  // Derive swipe indicator opacity from drag distance
   const swipeIndicatorOpacity = (direction: 'left' | 'right' | 'up') => {
     const t = SWIPE_THRESHOLD
     if (direction === 'left') return Math.min(Math.max(-swipeX / t, 0), 1)
     if (direction === 'right') return Math.min(Math.max(swipeX / t, 0), 1)
     if (direction === 'up') return Math.min(Math.max(-swipeY / t, 0), 1)
     return 0
+  }
+
+  // Flip style for the half-flip technique
+  const flipStyle = (): React.CSSProperties => {
+    if (flipStage === 'half') return { transform: 'rotateY(90deg)', transition: 'transform 0.25s ease-in' }
+    if (flipStage === 'done') return { transform: 'rotateY(0deg)', transition: 'transform 0.25s ease-out' }
+    return { transform: 'rotateY(0deg)', transition: 'transform 0.25s ease-out' }
   }
 
   if (loading) return (
@@ -204,7 +213,6 @@ function ReviewContent() {
           <div className="text-5xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold mb-2">Session Complete!</h2>
           <p className="text-slate-400 mb-6">You reviewed {total} cards.</p>
-
           <div className="grid grid-cols-3 gap-3 mb-8">
             <div className="bg-rose-500/10 rounded-xl p-3 border border-rose-500/20">
               <p className="text-xl font-bold text-rose-400">{sessionStats.again}</p>
@@ -219,10 +227,9 @@ function ReviewContent() {
               <p className="text-xs text-slate-400">Easy</p>
             </div>
           </div>
-
           <div className="flex gap-3">
             <Link href="/" className="flex-1 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 font-semibold text-center transition-colors">Dashboard</Link>
-            <button onClick={() => { setIndex(0); setDone(false); setSessionStats({ again: 0, good: 0, easy: 0 }); setCardAnim('card-enter') }} className="flex-1 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-semibold transition-colors">Review Again</button>
+            <button onClick={() => { setIndex(0); setDone(false); setSessionStats({ again: 0, good: 0, easy: 0 }); setCardAnim('card-enter'); setFlipStage('idle') }} className="flex-1 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-semibold transition-colors">Review Again</button>
           </div>
         </div>
       </div>
@@ -267,37 +274,27 @@ function ReviewContent() {
             </>
           )}
 
-          {/* Flip card */}
-          <div className="flip-card" onClick={!showAnswer ? handleFlip : undefined}>
-            <div className={`flip-card-inner ${isFlipped ? 'flipped' : ''}`}>
-              {/* Front - Question only */}
-              <div className="flip-card-front bg-slate-800/60 border border-slate-700/50 rounded-2xl p-8 cursor-pointer">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs text-slate-500">Week {current.week_number}</span>
-                  {current.tags && current.tags.length > 0 && (
-                    <span className="text-xs bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full">{current.tags[0]}</span>
-                  )}
-                </div>
-                <h2 className="text-xl font-semibold leading-relaxed">{current.question}</h2>
-                {!showAnswer && (
-                  <p className="text-xs text-slate-500 mt-6 text-center">Tap card or press Space to reveal</p>
-                )}
-              </div>
-
-              {/* Back - Question + Answer */}
-              <div className="flip-card-back bg-slate-800/60 border border-slate-700/50 rounded-2xl p-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs text-slate-500">Week {current.week_number}</span>
-                  {current.tags && current.tags.length > 0 && (
-                    <span className="text-xs bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full">{current.tags[0]}</span>
-                  )}
-                </div>
-                <h2 className="text-xl font-semibold leading-relaxed">{current.question}</h2>
-                <div className="mt-6 pt-6 border-t border-slate-700/50">
-                  <p className="text-slate-300 leading-relaxed">{current.answer}</p>
-                </div>
-              </div>
+          {/* Single card with half-flip animation */}
+          <div
+            className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-8 cursor-pointer"
+            style={{ ...flipStyle(), perspective: '800px' }}
+            onClick={!showAnswer ? handleFlip : undefined}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-slate-500">Week {current.week_number}</span>
+              {current.tags && current.tags.length > 0 && (
+                <span className="text-xs bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full">{current.tags[0]}</span>
+              )}
             </div>
+            <h2 className="text-xl font-semibold leading-relaxed">{current.question}</h2>
+            {showAnswer && (
+              <div className="mt-6 pt-6 border-t border-slate-700/50">
+                <p className="text-slate-300 leading-relaxed">{current.answer}</p>
+              </div>
+            )}
+            {!showAnswer && (
+              <p className="text-xs text-slate-500 mt-6 text-center">Tap card or press Space to reveal</p>
+            )}
           </div>
         </div>
 
